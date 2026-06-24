@@ -1,0 +1,3 @@
+{
+  "_comment": "Vercel Hobby plan only allows daily cron schedules — hourly crons fail to deploy. The hourly trigger for /api/cron/weather lives in .github/workflows/hourly-weather.yml instead (free, runs on GitHub's infrastructure). If you upgrade to Vercel Pro later, you can move the schedule here instead: { \"crons\": [{ \"path\": \"/api/cron/weather\", \"schedule\": \"0 * * * *\" }] }"
+}

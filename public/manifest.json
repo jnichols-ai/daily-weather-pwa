@@ -1,0 +1,17 @@
+{
+  "name": "Daily Weather",
+  "short_name": "Weather",
+  "description": "Hourly weather for the DE/MD/VA/WV corridor + Nashville area",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    }
+  ]
+}
