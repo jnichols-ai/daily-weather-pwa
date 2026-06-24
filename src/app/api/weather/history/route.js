@@ -11,7 +11,7 @@ export async function GET(request) {
     const location = searchParams.get("location")?.toLowerCase() || "";
     const date = searchParams.get("date") || "";
 
-    const { rows } = await fetchHistory({ limit: 1000 });
+    const { rows } = await fetchHistory({ limit: 500 });
 
     const filtered = rows.filter((r) => {
       const matchesLocation = location
