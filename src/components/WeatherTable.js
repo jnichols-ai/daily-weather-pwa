@@ -7,6 +7,7 @@ export default function WeatherTable() {
   const [total, setTotal] = useState(0);
   const [location, setLocation] = useState("");
   const [date, setDate] = useState("");
+  const [hour, setHour] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -17,6 +18,7 @@ export default function WeatherTable() {
       const params = new URLSearchParams();
       if (location) params.set("location", location);
       if (date) params.set("date", date);
+      if (hour) params.set("hour", hour);
       const res = await fetch(`/api/weather/history?${params.toString()}`, { cache: "no-store" });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -39,7 +41,13 @@ export default function WeatherTable() {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location, date]);
+  }, [location, date, hour]);
+
+  const hourOptions = Array.from({ length: 24 }, (_, h) => {
+    const value = String(h).padStart(2, "0");
+    const label = new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: "numeric", hour12: true });
+    return { value, label };
+  });
 
   const sorted = useMemo(
     () => [...rows].sort((a, b) => (b.observedAt || "").localeCompare(a.observedAt || "")),
@@ -56,7 +64,15 @@ export default function WeatherTable() {
           onChange={(e) => setLocation(e.target.value)}
         />
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <button className="tab-button" onClick={() => { setLocation(""); setDate(""); }}>
+        <select value={hour} onChange={(e) => setHour(e.target.value)}>
+          <option value="">Any hour</option>
+          {hourOptions.map((h) => (
+            <option key={h.value} value={h.value}>
+              {h.label}
+            </option>
+          ))}
+        </select>
+        <button className="tab-button" onClick={() => { setLocation(""); setDate(""); setHour(""); }}>
           Clear filters
         </button>
       </div>
