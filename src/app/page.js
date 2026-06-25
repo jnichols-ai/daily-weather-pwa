@@ -14,6 +14,7 @@ export default function Home() {
   const [currentRows, setCurrentRows] = useState([]);
   const [lastFetched, setLastFetched] = useState(null);
   const [error, setError] = useState(null);
+  const [pulling, setPulling] = useState(false);
 
   async function loadCurrent() {
     try {
@@ -25,6 +26,23 @@ export default function Home() {
       setError(null);
     } catch (e) {
       setError(String(e));
+    }
+  }
+
+  // Runs a fresh NWS pull (same as the hourly cron) on demand, then reloads
+  // the map data so the button reflects new readings immediately.
+  async function pullNow() {
+    setPulling(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/refresh", { method: "POST" });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      await loadCurrent();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setPulling(false);
     }
   }
 
@@ -51,8 +69,8 @@ export default function Home() {
         <button className={`tab-button ${tab === "search" ? "active" : ""}`} onClick={() => setTab("search")}>
           Search history
         </button>
-        <button className="tab-button" onClick={loadCurrent}>
-          Refresh now
+        <button className="tab-button" onClick={pullNow} disabled={pulling}>
+          {pulling ? "Pulling fresh data…" : "Refresh now"}
         </button>
       </nav>
 
