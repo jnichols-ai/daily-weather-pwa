@@ -58,7 +58,7 @@ export default function Home() {
         <h1>Daily Weather</h1>
         <span className="refresh-note">
           {lastFetched ? `Map data loaded ${lastFetched.toLocaleTimeString()} · auto-refreshes hourly` : "Loading…"}
-          {error && <span style={{ color: "#f87171" }}> — {error}</span>}
+          {error && <span style={{ color: "#d42121" }}> — {error}</span>}
         </span>
       </header>
 

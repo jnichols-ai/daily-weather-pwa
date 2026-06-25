@@ -79,7 +79,7 @@ export default function WeatherTable() {
 
       <div className="status-line">
         {loading ? "Loading…" : `Showing ${sorted.length} of ${total} logged readings`}
-        {error && <span style={{ color: "#f87171" }}> — {error}</span>}
+        {error && <span style={{ color: "#d42121" }}> — {error}</span>}
       </div>
 
       <div className="table-wrap">
