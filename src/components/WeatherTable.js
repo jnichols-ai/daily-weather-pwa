@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CITIES } from "@/lib/cities";
 
 export default function WeatherTable() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
-  const [location, setLocation] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
   const [date, setDate] = useState("");
   const [hour, setHour] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,7 +18,8 @@ export default function WeatherTable() {
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (location) params.set("location", location);
+      if (city) params.set("city", city);
+      if (state) params.set("state", state);
       if (date) params.set("date", date);
       if (hour) params.set("hour", hour);
       const res = await fetch(`/api/weather/history?${params.toString()}`, { cache: "no-store" });
@@ -41,13 +44,35 @@ export default function WeatherTable() {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location, date, hour]);
+  }, [city, state, date, hour]);
 
   const hourOptions = Array.from({ length: 24 }, (_, h) => {
     const value = String(h).padStart(2, "0");
     const label = new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: "numeric", hour12: true });
     return { value, label };
   });
+
+  const stateOptions = useMemo(
+    () => Array.from(new Set(CITIES.map((c) => c.state))).sort(),
+    []
+  );
+
+  // City dropdown narrows to the selected state, if any, so the list stays manageable.
+  const cityOptions = useMemo(
+    () =>
+      CITIES.filter((c) => (state ? c.state === state : true))
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [state]
+  );
+
+  // If the selected city is no longer valid for a newly chosen state, clear it.
+  useEffect(() => {
+    if (city && !cityOptions.some((c) => c.name === city)) {
+      setCity("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   const sorted = useMemo(
     () => [...rows].sort((a, b) => (b.observedAt || "").localeCompare(a.observedAt || "")),
@@ -57,12 +82,22 @@ export default function WeatherTable() {
   return (
     <div>
       <div className="filters">
-        <input
-          type="text"
-          placeholder="Filter by location (e.g. Richmond, MD, Nashville)"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-        />
+        <select value={state} onChange={(e) => setState(e.target.value)}>
+          <option value="">Any state</option>
+          {stateOptions.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <select value={city} onChange={(e) => setCity(e.target.value)}>
+          <option value="">Any city</option>
+          {cityOptions.map((c) => (
+            <option key={`${c.name}-${c.state}`} value={c.name}>
+              {c.name}{state ? "" : ` (${c.state})`}
+            </option>
+          ))}
+        </select>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <select value={hour} onChange={(e) => setHour(e.target.value)}>
           <option value="">Any hour</option>
@@ -72,7 +107,7 @@ export default function WeatherTable() {
             </option>
           ))}
         </select>
-        <button className="tab-button" onClick={() => { setLocation(""); setDate(""); setHour(""); }}>
+        <button className="tab-button" onClick={() => { setCity(""); setState(""); setDate(""); setHour(""); }}>
           Clear filters
         </button>
       </div>
