@@ -14,6 +14,10 @@ export const CITIES = [
 
   // Maryland (excluding Garrett & Allegany counties)
   { name: "Baltimore", state: "MD", region: "Maryland", lat: 39.2904, lon: -76.6122 },
+  { name: "Westminster", state: "MD", region: "Maryland", lat: 39.5757, lon: -77.0086 },
+  { name: "Bel Air", state: "MD", region: "Maryland", lat: 39.5354, lon: -76.3483 },
+  { name: "Manchester", state: "MD", region: "Maryland", lat: 39.6565, lon: -76.8886 },
+  { name: "Jarrettsville", state: "MD", region: "Maryland", lat: 39.6043, lon: -76.4752 },
   { name: "Annapolis", state: "MD", region: "Maryland", lat: 38.9784, lon: -76.4922 },
   { name: "Columbia", state: "MD", region: "Maryland", lat: 39.2037, lon: -76.8610 },
   { name: "Frederick", state: "MD", region: "Maryland", lat: 39.4143, lon: -77.4105 },
@@ -61,6 +65,9 @@ export const CITIES = [
   { name: "Culpeper", state: "VA", region: "Central Virginia", lat: 38.4730, lon: -77.9961 },
   { name: "Warrenton", state: "VA", region: "Central Virginia", lat: 38.7138, lon: -77.7930 },
   { name: "Orange", state: "VA", region: "Central Virginia", lat: 38.2459, lon: -78.1122 },
+
+  // Utah
+  { name: "Orem", state: "UT", region: "Utah", lat: 40.2969, lon: -111.6946 },
 
   // 55-mile radius around Nashville, TN
   { name: "Nashville", state: "TN", region: "Nashville Area", lat: 36.1627, lon: -86.7816 },
