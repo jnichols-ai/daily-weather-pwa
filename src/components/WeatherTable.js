@@ -2,14 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CITIES } from "@/lib/cities";
+import { enrichRow } from "@/lib/severity";
 
 export default function WeatherTable() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
-  const [city, setCity] = useState("");
+  // Server-side filters (reduce data transferred)
   const [state, setState] = useState("");
   const [date, setDate] = useState("");
-  const [hour, setHour] = useState("");
+  // Client-side filters applied after fetch
+  const [query, setQuery] = useState("");
+  const [sevFilter, setSevFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -18,10 +21,8 @@ export default function WeatherTable() {
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (city) params.set("city", city);
       if (state) params.set("state", state);
-      if (date) params.set("date", date);
-      if (hour) params.set("hour", hour);
+      if (date)  params.set("date", date);
       const res = await fetch(`/api/weather/history?${params.toString()}`, { cache: "no-store" });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -39,45 +40,27 @@ export default function WeatherTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounce filter changes slightly so we don't fire a request on every keystroke.
   useEffect(() => {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, state, date, hour]);
-
-  const hourOptions = Array.from({ length: 24 }, (_, h) => {
-    const value = String(h).padStart(2, "0");
-    const label = new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: "numeric", hour12: true });
-    return { value, label };
-  });
+  }, [state, date]);
 
   const stateOptions = useMemo(
     () => Array.from(new Set(CITIES.map((c) => c.state))).sort(),
     []
   );
 
-  // City dropdown narrows to the selected state, if any, so the list stays manageable.
-  const cityOptions = useMemo(
-    () =>
-      CITIES.filter((c) => (state ? c.state === state : true))
-        .slice()
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [state]
-  );
-
-  // If the selected city is no longer valid for a newly chosen state, clear it.
-  useEffect(() => {
-    if (city && !cityOptions.some((c) => c.name === city)) {
-      setCity("");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
-
-  const sorted = useMemo(
-    () => [...rows].sort((a, b) => (b.observedAt || "").localeCompare(a.observedAt || "")),
-    [rows]
-  );
+  // Enrich + apply client-side filters (severity, city text search)
+  const filteredRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return [...rows]
+      .map(enrichRow)
+      .filter((r) => !sevFilter || r.sevKey === sevFilter)
+      .filter((r) => !q || (r.cityName || "").toLowerCase().includes(q))
+      .sort((a, b) => (b.observedAt || "").localeCompare(a.observedAt || ""))
+      .map((r, i) => ({ ...r, rowBg: i % 2 === 0 ? "#ffffff" : "#fbfafa" }));
+  }, [rows, sevFilter, query]);
 
   return (
     <div>
@@ -85,36 +68,46 @@ export default function WeatherTable() {
         <select value={state} onChange={(e) => setState(e.target.value)}>
           <option value="">Any state</option>
           {stateOptions.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
+            <option key={s} value={s}>{s}</option>
           ))}
         </select>
-        <select value={city} onChange={(e) => setCity(e.target.value)}>
-          <option value="">Any city</option>
-          {cityOptions.map((c) => (
-            <option key={`${c.name}-${c.state}`} value={c.name}>
-              {c.name}{state ? "" : ` (${c.state})`}
-            </option>
-          ))}
+
+        <select value={sevFilter} onChange={(e) => setSevFilter(e.target.value)}>
+          <option value="">Any severity</option>
+          <option value="normal">Normal</option>
+          <option value="caution">Caution (HI ≥ 90°F)</option>
+          <option value="danger">Danger (HI ≥ 103°F)</option>
+          <option value="extreme">Extreme (HI ≥ 125°F)</option>
         </select>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <select value={hour} onChange={(e) => setHour(e.target.value)}>
-          <option value="">Any hour</option>
-          {hourOptions.map((h) => (
-            <option key={h.value} value={h.value}>
-              {h.label}
-            </option>
-          ))}
-        </select>
-        <button className="tab-button" onClick={() => { setCity(""); setState(""); setDate(""); setHour(""); }}>
+
+        <input
+          type="text"
+          placeholder="Search city…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          style={{ minWidth: "160px" }}
+        />
+
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          title="Filter by date"
+        />
+
+        <button
+          className="clear-btn"
+          onClick={() => { setState(""); setSevFilter(""); setQuery(""); setDate(""); }}
+        >
           Clear filters
         </button>
-      </div>
 
-      <div className="status-line">
-        {loading ? "Loading…" : `Showing ${sorted.length} of ${total} logged readings`}
-        {error && <span style={{ color: "#d42121" }}> — {error}</span>}
+        <span className="filter-status">
+          {loading
+            ? "Loading…"
+            : `Showing ${filteredRows.length} of ${total} logged readings`}
+          {error && <span style={{ color: "#d42121" }}> — {error}</span>}
+        </span>
       </div>
 
       <div className="table-wrap">
@@ -126,18 +119,25 @@ export default function WeatherTable() {
               <th>Temp (F)</th>
               <th>Condition</th>
               <th>Wind (mph)</th>
-              <th>Heat Index (F)</th>
+              <th>Heat Index</th>
             </tr>
           </thead>
           <tbody>
-            {sorted.map((r) => (
-              <tr key={r.id}>
-                <td>{r.address || r.name}</td>
-                <td>{r.observedAt || "—"}</td>
-                <td>{r.tempF ?? "—"}</td>
+            {filteredRows.map((r) => (
+              <tr key={r.id} style={{ background: r.rowBg }}>
+                <td style={{ fontWeight: 600 }}>{r.cityName}, {r.stateName}</td>
+                <td style={{ color: "#6b6b6b" }}>{r.observedAt || "—"}</td>
+                <td>{r.tempF ?? "—"}°</td>
                 <td>{r.condition ?? "—"}</td>
                 <td>{r.windMph ?? "—"}</td>
-                <td>{r.heatIndexF ?? "—"}</td>
+                <td>
+                  <span
+                    className="sev-pill"
+                    style={{ background: r.sevBg, color: r.sevColor }}
+                  >
+                    {r.heatIndexF ?? "—"}° · {r.sevLabel}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
