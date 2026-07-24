@@ -1,16 +1,21 @@
 import { CITIES } from "@/lib/cities";
 import { getWeatherForCity } from "@/lib/nws";
-import { appendHistoryRow, upsertCurrentConditions } from "@/lib/monday";
+import { appendHistoryRow, upsertCurrentConditions, fetchCurrentItemsMap } from "@/lib/monday";
 
 // Shared by the hourly cron route (GitHub Actions, auth-protected) and the
 // on-demand refresh route (triggered by the "Refresh now" button in the UI).
 // Pulls a fresh observation per city, computes heat index, writes both
 // monday.com boards.
 export async function runWeatherPull() {
+  // Pre-fetch the current board's item map ONCE so each upsertCurrentConditions
+  // call can look up the existing item ID without firing its own board scan.
+  // This prevents the race condition that was causing duplicate city rows.
+  const itemsMap = await fetchCurrentItemsMap();
+
   const results = await Promise.allSettled(
     CITIES.map(async (city) => {
       const reading = await getWeatherForCity(city);
-      await Promise.all([appendHistoryRow(reading), upsertCurrentConditions(reading)]);
+      await Promise.all([appendHistoryRow(reading), upsertCurrentConditions(reading, itemsMap)]);
       return `${city.name}, ${city.state}`;
     })
   );

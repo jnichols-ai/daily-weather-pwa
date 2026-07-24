@@ -97,36 +97,64 @@ export async function appendHistoryRow(reading) {
   });
 }
 
-// Finds the existing item for a city on the CURRENT board by exact name match.
-async function findCurrentItemId(city) {
-  const itemName = `${city.name}, ${city.state}`;
+// Fetches all items on the CURRENT board and returns a Map of
+// itemName → highest-id (most recently created) item ID.
+// Call this ONCE per hourly run and pass the result to every
+// upsertCurrentConditions call — avoids 57 parallel board scans.
+export async function fetchCurrentItemsMap() {
   const query = `
     query ($boardId: ID!) {
       boards(ids: [$boardId]) {
-        items_page(limit: 500, query_params: { rules: [{ column_id: "name", compare_value: ["${itemName}"], operator: any_of }] }) {
-          items { id name }
-        }
+        items_page(limit: 500) { items { id name } }
       }
     }
   `;
   try {
     const data = await mondayRequest(query, { boardId: CURRENT_BOARD_ID });
     const items = data?.boards?.[0]?.items_page?.items || [];
-    const match = items.find((i) => i.name === itemName);
-    return match ? match.id : null;
+    const map = new Map();
+    for (const item of items) {
+      // If duplicates exist, keep the most recently created (highest numeric ID).
+      const existing = map.get(item.name);
+      if (!existing || Number(item.id) > Number(existing)) {
+        map.set(item.name, item.id);
+      }
+    }
+    return map;
   } catch {
-    // Fall back to a plain scan if the name filter isn't supported in this API version.
-    return null;
+    return new Map();
   }
 }
 
 // Creates the city's row on first run, otherwise updates it in place.
-export async function upsertCurrentConditions(reading) {
+// Pass the itemsMap returned by fetchCurrentItemsMap() to avoid a redundant
+// per-city board scan. Falls back to a direct scan if no map is provided.
+export async function upsertCurrentConditions(reading, itemsMap) {
   const { city } = reading;
   const itemName = `${city.name}, ${city.state}`;
   const columnValues = buildColumnValues(CURRENT_COLUMNS, reading);
 
-  const existingId = await findCurrentItemId(city);
+  // Use the pre-fetched map when available; otherwise do a single-city scan.
+  let existingId = itemsMap?.get(itemName) ?? null;
+  if (existingId == null) {
+    try {
+      const scanQuery = `
+        query ($boardId: ID!) {
+          boards(ids: [$boardId]) {
+            items_page(limit: 500) { items { id name } }
+          }
+        }
+      `;
+      const data = await mondayRequest(scanQuery, { boardId: CURRENT_BOARD_ID });
+      const items = data?.boards?.[0]?.items_page?.items || [];
+      const matches = items
+        .filter((i) => i.name === itemName)
+        .sort((a, b) => Number(b.id) - Number(a.id));
+      existingId = matches[0]?.id || null;
+    } catch {
+      existingId = null;
+    }
+  }
 
   if (existingId) {
     const mutation = `
@@ -194,7 +222,7 @@ export async function fetchCurrentConditions() {
   const data = await mondayRequest(query, { boardId: CURRENT_BOARD_ID });
   const items = data?.boards?.[0]?.items_page?.items || [];
 
-  return items.map((item) => {
+  const rows = items.map((item) => {
     const loc = parseLocationValue(colByTitle(item, "Location"));
     return {
       id: item.id,
@@ -208,6 +236,17 @@ export async function fetchCurrentConditions() {
       lastUpdated: colByTitle(item, "Last Updated")?.text || null,
     };
   });
+
+  // Deduplicate: if the upsert ever created extra copies of a city, keep only
+  // the most recently created one (highest numeric item ID) per city name.
+  const byName = new Map();
+  for (const row of rows) {
+    const existing = byName.get(row.name);
+    if (!existing || Number(row.id) > Number(existing.id)) {
+      byName.set(row.name, row);
+    }
+  }
+  return Array.from(byName.values());
 }
 
 // Reads the history board, optionally paginated. Filtering by date/location is done
